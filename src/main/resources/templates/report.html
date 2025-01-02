@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>Report</title>
+</head>
+<body>
+    <h1>Report</h1>
+    <table>
+        <tr>
+            <th>Username</th>
+            <th>Login Time</th>
+            <th>Logout Time</th>
+        </tr>
+        <tr th:each="employee : ${employees}">
+            <td th:text="${employee.username}"></td>
+            <td th:text="${employee.loginTime}"></td>
+            <td th:text="${employee.logoutTime}"></td>
+        </tr>
+    </table>
+</body>
+</html>
