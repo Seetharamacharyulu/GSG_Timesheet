@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: com.timesheet_gsg.TimesheetSimpleloginApplicationTests
+-------------------------------------------------------------------------------
+Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 3.600 s -- in com.timesheet_gsg.TimesheetSimpleloginApplicationTests
