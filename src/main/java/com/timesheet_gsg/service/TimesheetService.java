@@ -1,17 +1,15 @@
 package com.timesheet_gsg.service;
 
-import java.net.InetAddress;
-import java.net.UnknownHostException;
+import java.net.*;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.Enumeration;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
 
 import com.timesheet_gsg.Repository.EmployeeRepository;
 import com.timesheet_gsg.model.Employee;
@@ -24,140 +22,158 @@ public class TimesheetService {
     @Autowired
     private EmployeeRepository employeeRepository;
 
-    // Define shift times
-    private static final LocalTime SHIFT_A_START = LocalTime.of(6, 0); // 6:00 AM
-    private static final LocalTime SHIFT_A_END = LocalTime.of(14, 30); // 2:30 PM
-    private static final LocalTime SHIFT_B_START = LocalTime.of(14, 30); // 2:30 PM
-    private static final LocalTime SHIFT_B_END = LocalTime.of(23, 0); // 11:00 PM
-    private static final LocalTime GENERAL_SHIFT_START = LocalTime.of(9, 0); // 9:00 AM
-    private static final LocalTime GENERAL_SHIFT_END = LocalTime.of(18, 0); // 6:00 PM
+    // Shift definitions
+    private static final LocalTime SHIFT_A_START = LocalTime.of(6, 0);
+    private static final LocalTime SHIFT_A_END = LocalTime.of(14, 30);
+    private static final LocalTime SHIFT_B_START = LocalTime.of(14, 30);
+    private static final LocalTime SHIFT_B_END = LocalTime.of(23, 0);
+    private static final LocalTime GENERAL_SHIFT_START = LocalTime.of(9, 0);
+    private static final LocalTime GENERAL_SHIFT_END = LocalTime.of(18, 0);
 
-    // Define the max working hours (10 hours) and cooldown period (12 hours)
-    private static final long MAX_WORKING_HOURS = 10; // Max working hours before logout is locked
-    private static final long COOLDOWN_PERIOD_HOURS = 12; // Cooldown period after 10 hours of work
+    private static final long MAX_WORKING_HOURS = 10;
+    private static final long COOLDOWN_PERIOD_HOURS = 12;
 
+    /**
+     * Authenticate the employee using username and password.
+     */
     public Employee authenticateEmployee(String username, String password) {
         Employee employee = employeeRepository.findByUsername(username);
+
         if (employee != null && employee.getPassword().equals(password)) {
             employee.setLoggedIn(true);
-            employee.setLoginTimestamp(LocalDateTime.now()); // Set login timestamp
-
-            // Capture the PC details (IP address and hostname)
-            String loginPCDetails = getLoginPCDetails();  // Method to retrieve PC details
-            employee.setLoginPCDetails(loginPCDetails);   // Set the captured PC details
-
-            // Check login time and assign the shift
-            LocalTime loginTime = employee.getLoginTimestamp().toLocalTime();
-            String shift = determineShift(loginTime);
-            employee.setShift(shift); // Set the shift
+            employee.setLoginTimestamp(LocalDateTime.now());
             employeeRepository.save(employee);
-
-            logger.info("Login success for user: {} on shift: {} from PC: {}", username, shift, loginPCDetails);
+            logger.info("Login success for user: {} at {}", username, employee.getLoginTimestamp());
             return employee;
         }
 
-        // Log login failure
         logger.warn("Login failed for user: {}", username);
-        return null; // Authentication failed
+        return null;
     }
 
-    public class LoginDetailsUtil {
-        // Utility method to extract IP and Hostname from loginPCDetails string
-        public static String[] extractIPAndHostname(String loginPCDetails) {
-            String[] details = new String[2];
-            if (loginPCDetails != null && loginPCDetails.startsWith("IP: ")) {
-                String[] parts = loginPCDetails.split(", ");
-                details[0] = parts[0].split(": ")[1];  // Extract IP
-                details[1] = parts.length > 1 ? parts[1].split(": ")[1] : "Unknown";  // Extract Hostname or "Unknown"
-            } else {
-                details[0] = "Unknown";
-                details[1] = "Unknown";
-            }
-            return details;
-        }
+    /**
+     * Change the employee's password.
+     */
+    public void changePassword(Employee employee, String newPassword) {
+        employee.setPassword(newPassword);
+        employeeRepository.save(employee);
+        logger.info("Password updated successfully for user: {}", employee.getUsername());
     }
 
+    /**
+     * Get the login PC details including IP and hostname.
+     */
+    
     private String getLoginPCDetails() {
-        // Retrieve the client IP address and hostname (if needed)
-        ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
-        
-        if (attributes != null) {
-            // Check for X-Forwarded-For header in case of proxy
-            String ipAddress = attributes.getRequest().getHeader("X-Forwarded-For");
+        StringBuilder ipAddresses = new StringBuilder();
+        String deviceName = "Unknown";
+
+        try {
+            // Get the local hostname (device name)
+            InetAddress localHost = InetAddress.getLocalHost();
+            deviceName = localHost.getHostName();  // This should provide the machine name
             
-            if (ipAddress != null && !ipAddress.isEmpty()) {
-                // Get the first IP address from the comma-separated list
-                String[] ips = ipAddress.split(",");
-                ipAddress = ips[0].trim();
-            } else {
-                ipAddress = attributes.getRequest().getRemoteAddr();
+            // If it's still the loopback address, fallback to using the system's user name
+            if ("localhost".equals(deviceName) || deviceName.contains(":")) {
+                deviceName = System.getProperty("user.name", "Unknown");
             }
 
-            // Optionally resolve the hostname
-            try {
-                InetAddress inetAddress = InetAddress.getByName(ipAddress);
-                String hostname = inetAddress.getHostName();  // Resolves the hostname
+            // Get all network interfaces
+            Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
+            while (interfaces.hasMoreElements()) {
+                NetworkInterface networkInterface = interfaces.nextElement();
 
-                // Combine IP and hostname as a string to save both details
-                return "IP: " + ipAddress + ", Hostname: " + hostname;
-            } catch (UnknownHostException e) {
-                // If hostname resolution fails, return just the IP address
-                return "IP: " + ipAddress + ", Hostname: Unknown";
+                // Skip loopback and inactive interfaces
+                if (!networkInterface.isUp() || networkInterface.isLoopback()) {
+                    continue;
+                }
+
+                // Get all IP addresses associated with the network interface
+                Enumeration<InetAddress> addresses = networkInterface.getInetAddresses();
+                while (addresses.hasMoreElements()) {
+                    InetAddress inetAddress = addresses.nextElement();
+
+                    // Capture only non-loopback IPv4 addresses (filter out IPv6 loopback)
+                    if (inetAddress instanceof Inet4Address && !inetAddress.isLoopbackAddress()) {
+                        if (ipAddresses.length() > 0) {
+                            ipAddresses.append(", ");
+                        }
+                        ipAddresses.append(inetAddress.getHostAddress());
+                    }
+                }
             }
+
+            // If no IPv4 addresses were found, add a fallback message
+            if (ipAddresses.length() == 0) {
+                ipAddresses.append("No IPv4 addresses found");
+            }
+        } catch (SocketException | UnknownHostException e) {
+            // Handle exceptions and return error message
+            ipAddresses.append("Error fetching IP: ").append(e.getMessage());
+            deviceName = "Unknown";  // In case of error, we return "Unknown" as the device name
         }
-     
-        return "IP: Unknown, Hostname: Unknown";  // Return "Unknown" if we can't capture the IP address or hostname
+
+        // Return the formatted IP and device name details
+        return String.format("IP: %s, Device Name: %s", ipAddresses, deviceName);
     }
 
+
+
+
+    /**
+     * Determine the employee's shift based on login time.
+     */
     private String determineShift(LocalTime loginTime) {
         if (loginTime.isAfter(SHIFT_A_START) && loginTime.isBefore(SHIFT_A_END)) {
-            return "Shift A"; // Morning shift (6 AM to 2:30 PM)
+            return "Shift A";
         } else if (loginTime.isAfter(SHIFT_B_START) && loginTime.isBefore(SHIFT_B_END)) {
-            return "Shift B"; // Evening shift (2:30 PM to 11 PM)
+            return "Shift B";
         } else if (loginTime.isAfter(GENERAL_SHIFT_START) && loginTime.isBefore(GENERAL_SHIFT_END)) {
-            return "General Shift"; // General shift (9 AM to 6 PM)
-        } else {
-            return "Unknown Shift"; // If login is outside the defined shifts
+            return "General Shift";
         }
+        return "Unknown Shift";
     }
 
+    /**
+     * Logout the employee and ensure no policy violations.
+     */
     public void logoutEmployee(String username) {
         Employee employee = employeeRepository.findByUsername(username);
         if (employee != null) {
             if (isLogoutLocked(employee)) {
-                String message = "You are not allowed to logout as you've exceeded the time limit. Please contact admin to know more.";
-                logger.warn("User {} attempted to logout but exceeded the time limit. Message: {}", username, message);
+                String message = "You are not allowed to logout as you've exceeded the time limit. Please contact admin.";
+                logger.warn("User {} attempted to logout but exceeded the time limit.", username);
                 throw new IllegalStateException(message);
             }
 
-            // Proceed with logout
             employee.setLoggedIn(false);
             employee.setLogoutTimestamp(LocalDateTime.now());
-            employeeRepository.save(employee); // Persist changes
-            logger.info("User {} logged out successfully.", username);
+            employeeRepository.save(employee);
+            logger.info("User {} logged out successfully at {}", username, employee.getLogoutTimestamp());
         } else {
             logger.warn("Logout attempt for non-existent user: {}", username);
         }
     }
 
+    /**
+     * Check if logout is locked due to exceeding max working hours.
+     */
     private boolean isLogoutLocked(Employee employee) {
-        // Check if employee has worked more than 10 hours
         if (employee.getLoginTimestamp() != null && employee.getLogoutTimestamp() == null) {
             Duration duration = Duration.between(employee.getLoginTimestamp(), LocalDateTime.now());
             long workedHours = duration.toHours();
 
             if (workedHours >= MAX_WORKING_HOURS) {
-                // Lock logout if working hours exceed 10 hours and apply cooldown
                 LocalDateTime nextAllowedLogoutTime = employee.getLoginTimestamp().plusHours(COOLDOWN_PERIOD_HOURS);
-                if (LocalDateTime.now().isBefore(nextAllowedLogoutTime)) {
-                    // If logout is attempted before cooldown period
-                    return true;
-                }
+                return LocalDateTime.now().isBefore(nextAllowedLogoutTime);
             }
         }
         return false;
     }
 
+    /**
+     * Find an employee by username.
+     */
     public Employee findEmployeeByUsername(String username) {
         return employeeRepository.findByUsername(username);
     }

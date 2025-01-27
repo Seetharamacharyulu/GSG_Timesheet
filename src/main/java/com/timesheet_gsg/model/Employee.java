@@ -1,98 +1,70 @@
 package com.timesheet_gsg.model;
 
 import java.time.LocalDateTime;
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Table;
 
 @Entity
+@Table(name = "Employee")
 public class Employee {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    private Integer id;
 
+    @Column(name = "employeeId", nullable = false, length = 50)
+    private String employeeId;
+
+    @Column(name = "username", nullable = false, length = 50, unique = true)
     private String username;
+
+    @Column(name = "password", nullable = false, length = 255)
     private String password;
+
+    @Column(name = "role", nullable = false, length = 20)
     private String role;
-    private boolean loggedIn;
-    private LocalDateTime loginTimestamp;
-    private LocalDateTime logoutTimestamp;
 
-    // New fields for employee details
-    private String employeeId;   // Employee ID
-    private String department;    // Employee Department
+    @Column(name = "department", length = 50)
+    private String department;
 
-    // New field for tracking employee's shift
+    @Column(name = "shift", length = 20)
     private String shift;
 
-    // New field for storing PC details during login
-    private String loginPCDetails;
-    
-    // New fields for storing login-related details
+    @Column(name = "loggedIn", columnDefinition = "BOOLEAN DEFAULT FALSE")
+    private Boolean loggedIn = false;
+
+    @Column(name = "login_timestamp")
+    private LocalDateTime loginTimestamp;
+
+    @Column(name = "logout_timestamp")
+    private LocalDateTime logoutTimestamp;
+
+    @Column(name = "loginIP", length = 255)
     private String loginIP;
+
+    @Column(name = "loginHostname", length = 255)
     private String loginHostname;
 
-    // Getter and Setter for employeeId
+    // Getters and Setters
+
+    public Integer getId() {
+        return id;
+    }
+
+    public void setId(Integer id) {
+        this.id = id;
+    }
+
     public String getEmployeeId() {
         return employeeId;
     }
 
     public void setEmployeeId(String employeeId) {
         this.employeeId = employeeId;
-    }
-
-    // Getter and Setter for department
-    public String getDepartment() {
-        return department;
-    }
-
-    public void setDepartment(String department) {
-        this.department = department;
-    }
-
-    // Getters and setters for loginPCDetails, loginIP, and loginHostname
-    public String getLoginPCDetails() {
-        return loginPCDetails;
-    }
-
-    public void setLoginPCDetails(String loginPCDetails) {
-        this.loginPCDetails = loginPCDetails;
-    }
-
-    public String getLoginIP() {
-        return loginIP;
-    }
-
-    public void setLoginIP(String loginIP) {
-        this.loginIP = loginIP;
-    }
-
-    public String getLoginHostname() {
-        return loginHostname;
-    }
-
-    public void setLoginHostname(String loginHostname) {
-        this.loginHostname = loginHostname;
-    }
-
-    // Getter and Setter for shift
-    public String getShift() {
-        return shift;
-    }
-
-    public void setShift(String shift) {
-        this.shift = shift;
-    }
-
-    // Getter and Setter methods for existing fields
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
     }
 
     public String getUsername() {
@@ -119,11 +91,27 @@ public class Employee {
         this.role = role;
     }
 
-    public boolean isLoggedIn() {
+    public String getDepartment() {
+        return department;
+    }
+
+    public void setDepartment(String department) {
+        this.department = department;
+    }
+
+    public String getShift() {
+        return shift;
+    }
+
+    public void setShift(String shift) {
+        this.shift = shift;
+    }
+
+    public Boolean getLoggedIn() {
         return loggedIn;
     }
 
-    public void setLoggedIn(boolean loggedIn) {
+    public void setLoggedIn(Boolean loggedIn) {
         this.loggedIn = loggedIn;
     }
 
@@ -141,5 +129,23 @@ public class Employee {
 
     public void setLogoutTimestamp(LocalDateTime logoutTimestamp) {
         this.logoutTimestamp = logoutTimestamp;
+    }
+
+
+
+    public String getLoginIP() {
+        return loginIP;
+    }
+
+    public void setLoginIP(String loginIP) {
+        this.loginIP = loginIP;
+    }
+
+    public String getLoginHostname() {
+        return loginHostname;
+    }
+
+    public void setLoginHostname(String loginHostname) {
+        this.loginHostname = loginHostname;
     }
 }

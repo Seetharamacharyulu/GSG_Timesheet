@@ -1,0 +1,6 @@
+"employeeId,username,password,role,department"
+"1,john_doe,password123,Admin,HR"
+"2,jane_smith,password456,Manager,Sales"
+"3,alex_jones,password789,Employee,Marketing"
+"4,mary_johnson,password101,Employee,IT"
+"5,emily_davis,password112,Manager,Finance"

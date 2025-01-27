@@ -5,12 +5,11 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.apache.poi.ss.util.CellRangeAddress;
 import org.springframework.stereotype.Service;
 import jakarta.servlet.http.HttpServletResponse;
-import com.timesheet_gsg.model.Employee;
+import com.timesheet_gsg.model.EmployeeActivity;
 import java.io.IOException;
-import java.net.*;
-import java.time.Duration;
 import java.time.LocalDate;
-import java.time.LocalTime;
+import java.time.LocalDateTime;
+import java.time.Duration;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -22,18 +21,13 @@ public class ExcelExportService {
 
     private static final Logger logger = LoggerFactory.getLogger(ExcelExportService.class);
 
-    private static final LocalTime SHIFT_A_START = LocalTime.of(6, 0);
-    private static final LocalTime SHIFT_B_START = LocalTime.of(14, 30);
-    private static final LocalTime GENERAL_SHIFT_START = LocalTime.of(9, 0);
-    private static final int MAX_WORKING_HOURS = 9;
-    private static final int DELAY_THRESHOLD_MINUTES = 15;
-    private static final String DNS_SUFFIX = "gsg.in";  // Assuming the DNS suffix is known as 'gsg.in'
 
-    public void exportEmployeeDataToExcel(HttpServletResponse response, List<Employee> employees, String reportType) {
+    // Export Employee Activity Data to Excel
+    public void exportEmployeeActivityDataToExcel(HttpServletResponse response, List<EmployeeActivity> activities, String reportType) {
         Workbook workbook = null;
         try {
             workbook = new XSSFWorkbook();
-            Sheet sheet = workbook.createSheet("Employee Data");
+            Sheet sheet = workbook.createSheet("Employee Activity Data");
 
             // Create header row with bold and background color
             Row headerRow = sheet.createRow(0);
@@ -46,8 +40,7 @@ public class ExcelExportService {
             headerStyle.setAlignment(HorizontalAlignment.CENTER);
 
             String[] headers = {
-                "Employee ID", "Username", "Role", "Department", "Login Date", "Login Time",
-                "Delayed Login Time", "Logout Date", "Logout Time", "Working Hours", "OT (Overtime)", "Shift", "IP Address", "Hostname", "Device Name"
+                "Employee ID", "Username", "Login Date", "Login Time", "Logout Date", "Logout Time", "Working Hours", "Overtime", "Activity", "IP Address", "Hostname"
             };
 
             for (int i = 0; i < headers.length; i++) {
@@ -59,31 +52,26 @@ public class ExcelExportService {
             DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
             DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss");
 
-            // Filter employees based on the reportType (daily, weekly, or monthly)
-            List<Employee> filteredEmployees = filterEmployeesByTimeframe(employees, reportType);
+            // Filter activities based on the reportType (daily, weekly, or monthly)
+            List<EmployeeActivity> filteredActivities = filterActivitiesByTimeframe(activities, reportType);
 
             int rowNum = 1;
-            for (Employee employee : filteredEmployees) {
+            for (EmployeeActivity activity : filteredActivities) {
                 Row row = sheet.createRow(rowNum++);
-
-                // Set default row values
-                setEmployeeRowValues(row, employee, dateFormatter, timeFormatter, workbook);
-
-                // Calculate and set login delay and shift
-                setLoginDelayAndShift(row, employee, workbook, dateFormatter, timeFormatter);
-
-                // Calculate and set logout and overtime
-                setLogoutAndOvertime(row, employee, workbook, dateFormatter, timeFormatter);
+                setEmployeeActivityRowValues(row, activity, workbook, dateFormatter, timeFormatter);
             }
 
             // Auto-size columns
-            for (int i = 0; i < 15; i++) {  // Include the new 'Device Name' column
+            for (int i = 0; i < 11; i++) {  // Includes all columns (11 columns now)
                 sheet.autoSizeColumn(i);
             }
 
+            // Add Summary sheet with login and logout timestamps
+            addSummarySheet(workbook, filteredActivities);
+
             // Set response headers
             response.setContentType("application/octet-stream");
-            response.setHeader("Content-Disposition", "attachment; filename=employee_data_" + reportType + ".xlsx");
+            response.setHeader("Content-Disposition", "attachment; filename=employee_activity_data_" + reportType + ".xlsx");
             workbook.write(response.getOutputStream());
 
         } catch (IOException e) {
@@ -105,170 +93,129 @@ public class ExcelExportService {
         }
     }
 
-    // Filter employees by selected timeframe (daily, weekly, or monthly)
-    private List<Employee> filterEmployeesByTimeframe(List<Employee> employees, String reportType) {
+    // Create a new summary sheet for login and logout timestamps
+    private void addSummarySheet(Workbook workbook, List<EmployeeActivity> activities) {
+        Sheet summarySheet = workbook.createSheet("Summary");
+
+        // Create header row for summary sheet
+        Row headerRow = summarySheet.createRow(0);
+        headerRow.createCell(0).setCellValue("Username");
+        headerRow.createCell(1).setCellValue("Login Timestamp");
+        headerRow.createCell(2).setCellValue("Logout Timestamp");
+
+        // Populate the summary sheet with employee data
+        int rowNum = 1;
+        for (EmployeeActivity activity : activities) {
+            Row row = summarySheet.createRow(rowNum++);
+            row.createCell(0).setCellValue(activity.getUsername());
+            row.createCell(1).setCellValue(activity.getLoginTimestamp() != null ? activity.getLoginTimestamp().toString() : "N/A");
+            row.createCell(2).setCellValue(activity.getLogoutTimestamp() != null ? activity.getLogoutTimestamp().toString() : "N/A");
+        }
+
+        // Auto-size columns for the summary sheet
+        for (int i = 0; i < 3; i++) {
+            summarySheet.autoSizeColumn(i);
+        }
+
+        logger.info("Summary sheet added with login and logout timestamps.");
+    }
+
+    // Filter activities by selected timeframe (daily, weekly, or monthly)
+    private List<EmployeeActivity> filterActivitiesByTimeframe(List<EmployeeActivity> activities, String reportType) {
         LocalDate currentDate = LocalDate.now();
 
         switch (reportType.toLowerCase()) {
             case "daily":
-                return employees.stream()
-                        .filter(e -> e.getLoginTimestamp() != null && e.getLoginTimestamp().toLocalDate().isEqual(currentDate))
+                return activities.stream()
+                        .filter(a -> a.getLoginTimestamp() != null && a.getLoginTimestamp().toLocalDate().isEqual(currentDate))
                         .collect(Collectors.toList());
             case "weekly":
                 LocalDate startOfWeek = currentDate.minusDays(currentDate.getDayOfWeek().getValue() - 1); // Get start of the current week (Monday)
-                return employees.stream()
-                        .filter(e -> e.getLoginTimestamp() != null && !e.getLoginTimestamp().toLocalDate().isBefore(startOfWeek))
+                return activities.stream()
+                        .filter(a -> a.getLoginTimestamp() != null && !a.getLoginTimestamp().toLocalDate().isBefore(startOfWeek))
                         .collect(Collectors.toList());
             case "monthly":
-                return employees.stream()
-                        .filter(e -> e.getLoginTimestamp() != null && e.getLoginTimestamp().toLocalDate().getMonth() == currentDate.getMonth())
+                return activities.stream()
+                        .filter(a -> a.getLoginTimestamp() != null && a.getLoginTimestamp().getMonth() == currentDate.getMonth())
                         .collect(Collectors.toList());
             default:
-                return employees;
+                return activities;
         }
     }
 
-    // Helper method to set employee row values
-    private void setEmployeeRowValues(Row row, Employee employee, DateTimeFormatter dateFormatter, DateTimeFormatter timeFormatter, Workbook workbook) {
-        row.createCell(0).setCellValue(employee.getEmployeeId());
-        row.createCell(1).setCellValue(employee.getUsername());
-        row.createCell(2).setCellValue(employee.getRole());
-        row.createCell(3).setCellValue(employee.getDepartment());
+    // Helper method to set employee activity row values
+    private void setEmployeeActivityRowValues(Row row, EmployeeActivity activity, Workbook workbook, DateTimeFormatter dateFormatter, DateTimeFormatter timeFormatter) {
+        row.createCell(0).setCellValue(activity.getEmployeeId());
+        row.createCell(1).setCellValue(activity.getUsername());
 
-        if (employee.getLoginTimestamp() != null) {
-            LocalDate loginDate = employee.getLoginTimestamp().toLocalDate();
-            LocalTime loginTime = employee.getLoginTimestamp().toLocalTime();
-            row.createCell(4).setCellValue(loginDate.format(dateFormatter));
-            row.createCell(5).setCellValue(loginTime.format(timeFormatter));
-
-            // Fetch and set IP address and Hostname with DNS Suffix
-            String loginIP = (employee.getLoginIP() != null) ? employee.getLoginIP() : getLocalIpAddress();
-            String loginHostname = (employee.getLoginHostname() != null) ? employee.getLoginHostname() : "N/A";
-
-            // Add DNS Suffix
-            loginHostname = appendDNSSuffix(loginHostname);
-
-            row.createCell(12).setCellValue(loginIP);
-            row.createCell(13).setCellValue(loginHostname);
+        // Set Login Date and Time
+        if (activity.getLoginTimestamp() != null) {
+            row.createCell(2).setCellValue(activity.getLoginTimestamp().format(dateFormatter));
+            row.createCell(3).setCellValue(activity.getLoginTimestamp().format(timeFormatter));
         } else {
-            row.createCell(4).setCellValue("Not Logged In");
-            row.createCell(5).setCellValue("N/A");
-            row.createCell(12).setCellValue("N/A");
-            row.createCell(13).setCellValue("N/A");
+            row.createCell(2).setCellValue("N/A");
+            row.createCell(3).setCellValue("N/A");
         }
 
-        // Capture device name (hostname)
-        String deviceName = getDeviceName();
-        row.createCell(14).setCellValue(deviceName);
-    }
+        // Set Logout Date and Time
+        if (activity.getLogoutTimestamp() != null) {
+            row.createCell(4).setCellValue(activity.getLogoutTimestamp().format(dateFormatter));
+            row.createCell(5).setCellValue(activity.getLogoutTimestamp().format(timeFormatter));
 
-    // Helper method to append the DNS suffix to the hostname
-    private String appendDNSSuffix(String hostname) {
-        if (hostname != null && !hostname.isEmpty()) {
-            return hostname + "." + DNS_SUFFIX;
-        }
-        return "N/A";
-    }
-
-    // Helper method to get local IPv4 address
-    private String getLocalIpAddress() {
-        try {
-            InetAddress inetAddress = InetAddress.getLocalHost();
-            return inetAddress.getHostAddress();
-        } catch (UnknownHostException e) {
-            logger.error("Unable to retrieve local IP address.", e);
-            return "N/A";
-        }
-    }
-
-    // Helper method to get the device name (hostname)
-    private String getDeviceName() {
-        try {
-            InetAddress inetAddress = InetAddress.getLocalHost();
-            return inetAddress.getHostName();
-        } catch (UnknownHostException e) {
-            logger.error("Unable to retrieve device name (hostname).", e);
-            return "N/A";
-        }
-    }
-
-    // Helper method to calculate delay and shift
-    private void setLoginDelayAndShift(Row row, Employee employee, Workbook workbook, DateTimeFormatter dateFormatter, DateTimeFormatter timeFormatter) {
-        if (employee.getLoginTimestamp() != null) {
-            LocalTime loginTime = employee.getLoginTimestamp().toLocalTime();
-            LocalTime shiftStartTime = getShiftStartTime(employee.getLoginTimestamp().toLocalTime());
-            Duration delayDuration = Duration.between(shiftStartTime, loginTime);
-
-            long delayHours = delayDuration.toHours();
-            long delayMinutes = delayDuration.toMinutes() % 60;
-
-            String delayTimeFormatted = String.format("%d hours %d minutes", delayHours, delayMinutes);
-
-            if (delayDuration.toMinutes() > DELAY_THRESHOLD_MINUTES) {
-                CellStyle redStyle = workbook.createCellStyle();
-                redStyle.setFillForegroundColor(IndexedColors.RED.getIndex());
-                redStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
-                Cell delayedLoginCell = row.createCell(6);
-                delayedLoginCell.setCellValue(delayTimeFormatted);
-                delayedLoginCell.setCellStyle(redStyle);
-            } else {
-                row.createCell(6).setCellValue(delayTimeFormatted);
-            }
-
-            // Shift determination
-            String shift = getShift(employee.getLoginTimestamp().toLocalTime());
-            row.createCell(11).setCellValue(shift);
-        }
-    }
-
-    // Helper method to calculate logout and overtime
-    private void setLogoutAndOvertime(Row row, Employee employee, Workbook workbook, DateTimeFormatter dateFormatter, DateTimeFormatter timeFormatter) {
-        if (employee.getLogoutTimestamp() != null) {
-            row.createCell(7).setCellValue(employee.getLogoutTimestamp().toLocalDate().toString());
-            row.createCell(8).setCellValue(employee.getLogoutTimestamp().toLocalTime().toString());
-
-            if (employee.getLoginTimestamp() != null && employee.getLogoutTimestamp() != null) {
-                Duration duration = Duration.between(employee.getLoginTimestamp(), employee.getLogoutTimestamp());
+            // Calculate Working Hours if Login and Logout are on the same day
+            if (activity.getLoginTimestamp() != null && activity.getLogoutTimestamp() != null &&
+                activity.getLoginTimestamp().toLocalDate().isEqual(activity.getLogoutTimestamp().toLocalDate())) {
+                
+                // Calculate working hours as the difference between login and logout timestamps
+                Duration duration = Duration.between(activity.getLoginTimestamp(), activity.getLogoutTimestamp());
                 long hours = duration.toHours();
                 long minutes = duration.toMinutes() % 60;
-                String workingHours = String.format("%d hours %d minutes", hours, minutes);
-                row.createCell(9).setCellValue(workingHours);
 
-                if (hours > MAX_WORKING_HOURS || (hours == MAX_WORKING_HOURS && minutes > 0)) {
-                    long overtimeMinutes = (duration.toMinutes() - MAX_WORKING_HOURS * 60);
-                    long overtimeHours = overtimeMinutes / 60;
-                    overtimeMinutes = overtimeMinutes % 60;
-                    String overtime = String.format("%d hours %d minutes", overtimeHours, overtimeMinutes);
-                    row.createCell(10).setCellValue(overtime);
+                // Display working hours in decimal format (e.g., 7.5 for 7 hours 30 minutes)
+                double workingHours = hours + (minutes / 60.0);
+                row.createCell(6).setCellValue(String.format("%.2f", workingHours));  // Working Hours column
+
+                // Apply conditional formatting (blue color if working hours > 9)
+                if (workingHours > 9) {
+                    CellStyle blueStyle = workbook.createCellStyle();
+                    blueStyle.setFillForegroundColor(IndexedColors.LIGHT_BLUE.getIndex());
+                    blueStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+                    row.getCell(6).setCellStyle(blueStyle);
+
+                    // Calculate OT (Overtime) in hours
+                    double overtime = workingHours - 9;
+                    row.createCell(7).setCellValue(String.format("%.2f", overtime));  // Overtime column
+
+                    // Apply blue color to Overtime column if it's greater than 0
+                    if (overtime > 0) {
+                        CellStyle otStyle = workbook.createCellStyle();
+                        otStyle.setFillForegroundColor(IndexedColors.LIGHT_BLUE.getIndex());
+                        otStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+                        row.getCell(7).setCellStyle(otStyle);
+                    }
+
                 } else {
-                    row.createCell(10).setCellValue("No OT");
+                    row.createCell(7).setCellValue("0.00");  // No Overtime
                 }
+
+            } else {
+                row.createCell(6).setCellValue("N/A");
+                row.createCell(7).setCellValue("N/A");
             }
-        } else {
-            row.createCell(7).setCellValue("Not Logged Out");
-            row.createCell(8).setCellValue("Not Logged Out");
-            row.createCell(9).setCellValue("N/A");
-            row.createCell(10).setCellValue("N/A");
-        }
-    }
 
-    private LocalTime getShiftStartTime(LocalTime loginTime) {
-        if (!loginTime.isBefore(SHIFT_A_START) && loginTime.isBefore(SHIFT_B_START)) {
-            return SHIFT_A_START;
-        } else if (!loginTime.isBefore(SHIFT_B_START) && loginTime.isBefore(GENERAL_SHIFT_START)) {
-            return SHIFT_B_START;
         } else {
-            return GENERAL_SHIFT_START;
+            row.createCell(4).setCellValue("N/A");
+            row.createCell(5).setCellValue("N/A");
+            row.createCell(6).setCellValue("N/A");
+            row.createCell(7).setCellValue("N/A");
         }
-    }
 
-    private String getShift(LocalTime loginTime) {
-        if (!loginTime.isBefore(SHIFT_A_START) && loginTime.isBefore(SHIFT_B_START)) {
-            return "Shift A";
-        } else if (!loginTime.isBefore(SHIFT_B_START) && loginTime.isBefore(GENERAL_SHIFT_START)) {
-            return "Shift B";
-        } else {
-            return "General Shift";
-        }
+        row.createCell(8).setCellValue(activity.getActivity());
+
+        // Set IP Address
+        row.createCell(9).setCellValue(activity.getLoginIP() != null ? activity.getLoginIP() : "N/A");
+
+        // Set Hostname
+        row.createCell(10).setCellValue(activity.getLoginHostname() != null ? activity.getLoginHostname() : "N/A");
     }
 }

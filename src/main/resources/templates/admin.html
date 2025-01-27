@@ -10,18 +10,31 @@
     <style>
         body {
             font-family: 'Roboto', sans-serif;
-            background-color: #f4f4f9;
+            background: linear-gradient(135deg, #3498db, #2c3e50);
+            color: #fff;
             margin: 0;
             padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        .container {
+            background-color: rgba(255, 255, 255, 0.95);
+            color: #2c3e50;
+            max-width: 600px;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
             text-align: center;
         }
 
         h1 {
             font-family: 'Montserrat', sans-serif;
-            color: #2C3E50;
-            font-weight: 700;
-            margin-top: 50px;
+            color: #3498db;
             font-size: 36px;
+            margin-bottom: 20px;
         }
 
         a {
@@ -29,28 +42,40 @@
             color: white;
             padding: 12px 30px;
             font-size: 18px;
-            background-color: #3498db;
+            background: linear-gradient(135deg, #3498db, #2980b9);
+            border: none;
             border-radius: 10px;
             margin-top: 20px;
             display: inline-block;
-            transition: background-color 0.3s ease;
+            transition: background 0.3s ease, transform 0.2s ease;
         }
 
         a:hover {
-            background-color: #2980b9;
-        }
-
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 30px;
+            background: linear-gradient(135deg, #2980b9, #1e6f9f);
+            transform: translateY(-3px);
         }
 
         .message {
-            font-size: 20px;
-            font-weight: bold;
+            font-size: 18px;
+            font-weight: 500;
             color: #27ae60;
             margin-top: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                width: 90%;
+                padding: 20px;
+            }
+
+            h1 {
+                font-size: 28px;
+            }
+
+            a {
+                font-size: 16px;
+                padding: 10px 20px;
+            }
         }
     </style>
 </head>

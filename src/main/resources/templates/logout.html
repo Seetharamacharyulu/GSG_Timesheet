@@ -28,11 +28,12 @@
             padding: 40px;
             text-align: center;
             width: 320px;
-            transition: transform 0.3s ease;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
         }
 
         .container:hover {
             transform: scale(1.05);
+            box-shadow: 0 15px 50px rgba(0, 0, 0, 0.2);
         }
 
         h2 {
@@ -43,10 +44,34 @@
             color: #4f4f4f;
         }
 
+        label {
+            display: block;
+            margin: 10px 0 5px;
+            font-weight: bold;
+            font-size: 14px;
+            color: #333;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            font-size: 14px;
+            transition: border-color 0.3s ease;
+        }
+
+        input:focus {
+            border-color: #6a11cb;
+            outline: none;
+        }
+
         .button {
             display: block;
+            width: 100%;
             margin: 15px auto;
-            padding: 12px 24px;
+            padding: 14px;
             font-size: 16px;
             border: none;
             border-radius: 8px;
@@ -54,11 +79,12 @@
             color: #fff;
             cursor: pointer;
             font-family: 'Montserrat', sans-serif;
-            transition: background 0.3s ease;
+            transition: background 0.3s ease, transform 0.2s ease;
         }
 
         .button:hover {
             background: linear-gradient(to right, #ff5f6d, #ffc371);
+            transform: translateY(-2px);
         }
 
         .message {
@@ -77,9 +103,32 @@
         }
 
         .footer {
-            margin-top: 20px;
+            margin-top: 30px;
             font-size: 14px;
             color: #888;
+            text-align: center;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 480px) {
+            .container {
+                width: 90%;
+                padding: 20px;
+            }
+
+            h2 {
+                font-size: 24px;
+            }
+
+            input {
+                padding: 10px;
+                font-size: 12px;
+            }
+
+            .button {
+                padding: 12px;
+                font-size: 14px;
+            }
         }
     </style>
 </head>
@@ -91,30 +140,19 @@
         <div th:if="${logoutMessage != null}" class="message success">
             <span th:text="${logoutMessage}"></span>
         </div>
-
-        <!-- Display error message for restricted login -->
-        <div th:if="${error != null}" class="message error">
-            <span th:text="${error}"></span>
-        </div>
-        
-        <!-- Show Logout Success Message with Username and Timestamp -->
-        <div th:if="${logoutMessage != null}">
-           
-        </div>
-
-        <!-- Login Button -->
-        <form action="/login" method="post">
-            <button type="submit" class="button">Login</button>
-        </form>
-
-        <!-- Logout Button (if needed) -->
+		<!-- Dynamically display the error message for invalid credentials -->
+		       <div th:if="${error != null}" class="message error">
+		           <span th:text="${error}"></span>
+		       </div>
+        <!-- Logout Form -->
         <form action="/logout" method="post">
-            <button type="submit" class="button">Logout</button>
-        </form>
+            <label for="username">Username</label>
+            <input type="text" id="username" name="username" placeholder="Enter your username" required>
 
-        <!-- Reset Password Button -->
-        <form action="/passwordReset" method="get">
-            <button type="submit" class="button">Reset Password</button>
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password" placeholder="Enter your password" required>
+
+            <button type="submit" class="button">Submit</button>
         </form>
 
         <div class="footer">
