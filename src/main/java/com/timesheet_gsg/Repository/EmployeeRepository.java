@@ -36,10 +36,10 @@ public interface EmployeeRepository extends JpaRepository<Employee, Integer> {
 	void deleteByEmployeeId(String employeeId);
 
 	// Delete an employee by username
-	// void deleteByUsername(String username);
+	 void deleteByUsername(String username);
 
 	// Custom method to delete multiple employees by their usernames
-	//void deleteByUsernameIn(List<String> usernames);
+	void deleteByUsernameIn(List<String> usernames);
 
 	// Bulk delete employees by list of IDs
 	void deleteByIdIn(List<Integer> ids);
@@ -56,6 +56,5 @@ public interface EmployeeRepository extends JpaRepository<Employee, Integer> {
 	// Custom find all method (unnecessary as it's already inherited from
 	// JpaRepository)
 	List<Employee> findAll(); // Explicitly added, though JpaRepository already provides it
-	 @Transactional
-	    void deleteByUsernameIn(List<String> usernames);
+	 
 }

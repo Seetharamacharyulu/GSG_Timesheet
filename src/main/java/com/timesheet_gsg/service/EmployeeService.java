@@ -13,6 +13,8 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.transaction.Transactional;
+
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.time.Duration;
@@ -51,37 +53,35 @@ public class EmployeeService {
 		}
 		employeeRepository.save(employee);
 	}
-	
+
 	public Employee authenticateEmployee(String username, String password) {
-	    // Attempt to find employee by username
-	    Employee employee = employeeRepository.findByUsername(username);
+		// Attempt to find employee by username
+		Employee employee = employeeRepository.findByUsername(username);
 
-	    // Check if the employee exists
-	    if (employee != null) {
-	        // Check if the password matches
-	        if (employee.getPassword().equals(password)) {
-	            // Set logged-in status and capture login timestamp
-	            employee.setLoggedIn(true);
-	            employee.setLoginTimestamp(LocalDateTime.now()); // Capture current date and time as login timestamp
+		// Check if the employee exists
+		if (employee != null) {
+			// Check if the password matches
+			if (employee.getPassword().equals(password)) {
+				// Set logged-in status and capture login timestamp
+				employee.setLoggedIn(true);
+				employee.setLoginTimestamp(LocalDateTime.now()); // Capture current date and time as login timestamp
 
-	            // Save employee with the updated login timestamp
-	            employeeRepository.save(employee);
+				// Save employee with the updated login timestamp
+				employeeRepository.save(employee);
 
-	            // Log successful login
-	            logger.info("Login success for user: {} at {}", username, employee.getLoginTimestamp());
-	            return employee; // Return authenticated employee
-	        }
-	    }
+				// Log successful login
+				logger.info("Login success for user: {} at {}", username, employee.getLoginTimestamp());
+				return employee; // Return authenticated employee
+			}
+		}
 
-	    // Log failed authentication attempt
-	    logger.warn("Login failed for user: {}", username);
-	    return null; // Return null if authentication fails
+		// Log failed authentication attempt
+		logger.warn("Login failed for user: {}", username);
+		return null; // Return null if authentication fails
 	}
 
 	// `canLogin` method removed or kept as a placeholder
 	// If you decide to remove it, simply omit the `canLogin` method from your code.
-
-
 
 	// Change the password for an employee
 	public boolean changePassword(String username, String newPassword) {
@@ -110,26 +110,20 @@ public class EmployeeService {
 		return employeeRepository.findByUsername(username) != null;
 	}
 
-	public boolean deleteEmployeesByUsernames(List<String> selectedUsernames) {
-	    try {
-	        if (selectedUsernames == null || selectedUsernames.isEmpty()) {
-	            logger.warn("No usernames provided for deletion.");
-	            return false;
-	        }
-
-	        logger.info("Attempting to delete employees with usernames: {}", selectedUsernames);
-
-	        // Bulk delete using repository method
-	        employeeRepository.deleteByUsernameIn(selectedUsernames);
-
-	        logger.info("Successfully deleted employees with usernames: {}", selectedUsernames);
-	        return true;
-	    } catch (Exception e) {
-	        logger.error("Error deleting employees: {}", e.getMessage(), e);
-	        return false;
-	    }
+	@Transactional
+	public boolean deleteEmployeesByEmployeeId(List<String> employeeIds) {
+		try {
+			for (String employeeId : employeeIds) {
+				logger.info("Attempting to delete employee with ID: {}", employeeId);
+				employeeRepository.deleteByEmployeeId(employeeId); // Delete employee by employeeId
+				logger.info("Deleted employee with ID: {}", employeeId);
+			}
+			return true;
+		} catch (Exception e) {
+			logger.error("Error occurred while deleting employees: {}", e.getMessage());
+			return false;
+		}
 	}
-
 
 	// Method to reset password for an employee by username
 	public boolean resetPassword(String username, String newPassword) {
@@ -226,21 +220,24 @@ public class EmployeeService {
 	public List<EmployeeActivity> getAllEmployeeActivities() {
 		return employeeActivityRepository.findAll(); // Fetch all activities
 	}
-	public LocalDateTime getLatestLoginTimestamp(String username) {
-	    // Query the database to fetch the latest login timestamp for the user
-	    // You may need to write a custom query to get this information
-	    Employee employee = employeeRepository.findByUsername(username);
-	    return employee != null ? employee.getLoginTimestamp() : null;
-	}
-	public void updateLoginTimestamp(Employee employee) {
-        // Update the login timestamp to the current time
-        employee.setLoginTimestamp(LocalDateTime.now());
 
-        // Save the updated employee entity to the database
-        employeeRepository.save(employee);
-    }
+	public LocalDateTime getLatestLoginTimestamp(String username) {
+		// Query the database to fetch the latest login timestamp for the user
+		// You may need to write a custom query to get this information
+		Employee employee = employeeRepository.findByUsername(username);
+		return employee != null ? employee.getLoginTimestamp() : null;
+	}
+
+	public void updateLoginTimestamp(Employee employee) {
+		// Update the login timestamp to the current time
+		employee.setLoginTimestamp(LocalDateTime.now());
+
+		// Save the updated employee entity to the database
+		employeeRepository.save(employee);
+	}
+
 	public Employee getEmployeeByUsernameAndId(String username, String employeeId) {
-	    // Implement logic to find employee by both username and employeeId
-	    return employeeRepository.findByUsernameAndEmployeeId(username, employeeId);
+		// Implement logic to find employee by both username and employeeId
+		return employeeRepository.findByUsernameAndEmployeeId(username, employeeId);
 	}
 }

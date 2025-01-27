@@ -5,8 +5,10 @@ import java.io.InputStream;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.stream.Collectors;
 
@@ -25,6 +27,7 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
@@ -236,10 +239,10 @@ public class AdminController {
     @GetMapping("/admin/employeeList")
     public String showEmployeeList(Model model) {
         List<Employee> employees = employeeService.getAllEmployees();
-        if (employees == null) {
-            logger.error("Employees list is null!");
+        if (employees == null || employees.isEmpty()) {
+            logger.error("Employees list is null or empty!");
         } else {
-            logger.info("Employees fetched: " + employees.size());
+            logger.info("Fetched {} employees: {}", employees.size(), employees);
         }
         model.addAttribute("employees", employees);
         return "employeeList";
@@ -247,35 +250,43 @@ public class AdminController {
 
 
 
+
     @PostMapping("/admin/deleteEmployees")
-    public String deleteEmployees(@RequestParam(value = "selectedUsernames", required = false) List<String> selectedUsernames,
-                                  RedirectAttributes redirectAttributes) {
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> deleteEmployees(@RequestParam(value = "selectedEmployeeIds", required = false) List<String> selectedEmployeeIds) {
+        Map<String, Object> response = new HashMap<>();
+
         // Check if any employees are selected for deletion
-        if (selectedUsernames == null || selectedUsernames.isEmpty()) {
-            redirectAttributes.addFlashAttribute("error", "No employees selected for deletion.");
-            return "redirect:/admin/employeeList";  // Redirect back to the employee list page
+        if (selectedEmployeeIds == null || selectedEmployeeIds.isEmpty()) {
+            response.put("success", false);
+            response.put("message", "No employees selected for deletion.");
+            return ResponseEntity.badRequest().body(response);  // Return a bad request if no employees selected
         }
 
         try {
-            logger.info("Attempting to delete employees with usernames: {}", selectedUsernames);
+            logger.info("Attempting to delete employees with IDs: {}", selectedEmployeeIds);
 
-            // Attempt to delete employees by their usernames
-            boolean isDeleted = employeeService.deleteEmployeesByUsernames(selectedUsernames);
+            // Attempt to delete employees by their employeeIds
+            boolean isDeleted = employeeService.deleteEmployeesByEmployeeId(selectedEmployeeIds);
 
             if (isDeleted) {
-                redirectAttributes.addFlashAttribute("success", "Selected employees have been deleted successfully.");
-                logger.info("Employees deleted successfully: {}", selectedUsernames);
+                response.put("success", true);
+                response.put("message", "Selected employees have been deleted successfully.");
+                logger.info("Employees deleted successfully: {}", selectedEmployeeIds);
             } else {
-                redirectAttributes.addFlashAttribute("error", "Failed to delete some or all employees. Please try again.");
-                logger.warn("Failed to delete employees: {}", selectedUsernames);
+                response.put("success", false);
+                response.put("message", "Failed to delete some or all employees. Please try again.");
+                logger.warn("Failed to delete employees: {}", selectedEmployeeIds);
             }
         } catch (Exception e) {
             logger.error("Error deleting employees: {}", e.getMessage(), e);
-            redirectAttributes.addFlashAttribute("error", "An error occurred while deleting employees. Please try again.");
+            response.put("success", false);
+            response.put("message", "An error occurred while deleting employees. Please try again.");
         }
 
-        return "redirect:/admin/employeeList";  // Redirect back to the employee list page
+        return ResponseEntity.ok(response);  // Return a response with the success status
     }
+
 
 
     // Reset passwords for multiple employees
