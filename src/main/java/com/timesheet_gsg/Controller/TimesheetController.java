@@ -1,19 +1,10 @@
 package com.timesheet_gsg.Controller;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.net.Inet4Address;
 import java.net.InetAddress;
-import java.net.InterfaceAddress;
-import java.net.NetworkInterface;
-import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Enumeration;
-import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -197,53 +188,39 @@ public class TimesheetController {
         return "logout"; // Display the logout form
     }
 
-    // Handle logout attempt
     @PostMapping("/logout")
     public String logout(@RequestParam(name = "username", required = false) String username,
                          @RequestParam(name = "password", required = false) String password,
                          RedirectAttributes redirectAttributes) {
 
-        // Only attempt to log out if both username and password are provided
         if (username != null && password != null) {
             logger.info("Logout attempt for user: {}", username);
 
-            // Validate username and password
             Employee employee = employeeService.authenticateEmployee(username, password);
             if (employee == null) {
-                // If authentication fails, add error message and redirect
-                String errorMessage = "Invalid username or password.";
-                redirectAttributes.addFlashAttribute("error", errorMessage);
+                redirectAttributes.addFlashAttribute("error", "Invalid username or password.");
                 logger.warn("Logout failed: Invalid credentials for username: {}", username);
-                return "redirect:/logout"; // Redirect back to logout page with error
+                return "redirect:/logout";
             }
 
-            // Check if the employee is logged in and if the login timestamp is from today
             LocalDate currentDate = LocalDate.now();
 
-            
-         // Check if employee has already logged out today
             if (employee.getLogoutTimestamp() != null && employee.getLogoutTimestamp().toLocalDate().equals(currentDate)) {
-                // If employee has already logged out today, show error message with the logout timestamp
                 String logoutTimestamp = employee.getLogoutTimestamp().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
-                String errorMessage = "User " + username + " has already logged out today at " + logoutTimestamp + ".";
-                redirectAttributes.addFlashAttribute("error", errorMessage);
+                redirectAttributes.addFlashAttribute("error", "User " + username + " has already logged out today at " + logoutTimestamp + ".");
                 logger.warn("Logout attempt failed for user {}. Already logged out today at {}", username, logoutTimestamp);
-                return "redirect:/logout"; // Redirect back to logout page with error
+                return "redirect:/logout";
             }
 
-
-            // Check if employee is logged in today
             if (employee.getLoggedIn() != null && employee.getLoggedIn() &&
                 employee.getLoginTimestamp() != null &&
                 employee.getLoginTimestamp().toLocalDate().equals(currentDate)) {
 
-                // Log the logout activity
                 LocalDateTime logoutTimestamp = LocalDateTime.now();
-                employee.setLoggedIn(false); // Set loggedIn to false
-                employee.setLogoutTimestamp(logoutTimestamp); // Mark logout timestamp
+                employee.setLoggedIn(false);
+                employee.setLogoutTimestamp(logoutTimestamp);
                 employeeService.updateEmployee(employee);
 
-                // Save the logout activity
                 EmployeeActivity activity = new EmployeeActivity();
                 activity.setEmployeeId(employee.getEmployeeId());
                 activity.setUsername(username);
@@ -253,26 +230,22 @@ public class TimesheetController {
                 activity.setLoginHostname(employee.getLoginHostname());
                 employeeActivityService.saveEmployeeActivity(activity);
 
-                // Add success message with username and timestamp
-                String timestamp = logoutTimestamp.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
-                String logoutMessage = "User " + username + " logged out successfully at " + timestamp + ".";
-                redirectAttributes.addFlashAttribute("logoutMessage", logoutMessage);
-                redirectAttributes.addFlashAttribute("username", username);
-                redirectAttributes.addFlashAttribute("logoutTimestamp", timestamp);
-                logger.info("User {} logged out successfully at {}", username, timestamp);
+                String formattedTimestamp = logoutTimestamp.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+                String logoutMessage = "User " + username + " logged out successfully at " + formattedTimestamp + ".";
+                redirectAttributes.addFlashAttribute("successMessage", logoutMessage);
+                redirectAttributes.addFlashAttribute("redirectUrl", "/timesheet");
+
+                logger.info("User {} logged out successfully at {}", username, formattedTimestamp);
+                return "redirect:/logout"; 
 
             } else {
-                // If the user is not logged in today or their session doesn't match, show error
-                String errorMessage = "No active session found for this user or login was not on today's date.";
-                redirectAttributes.addFlashAttribute("error", errorMessage);
+                redirectAttributes.addFlashAttribute("error", "No active session found for this user or login was not on today's date.");
                 logger.warn("Logout attempt failed for user {}. No valid session found.", username);
+                return "redirect:/logout";
             }
-
-            // Redirect to timesheet page or back to logout page with message
-            return "redirect:/timesheet";
         } else {
-            // Handle case where username or password are missing on page load (to prevent error display)
-            return "redirect:/logout"; // No error unless credentials are provided
+            redirectAttributes.addFlashAttribute("error", "Please provide both username and password to log out.");
+            return "redirect:/logout";
         }
     }
 
@@ -281,36 +254,66 @@ public class TimesheetController {
 
 
 
-    // Password Reset page
+
+ // Password Reset page
     @GetMapping("/passwordReset")
     public String showPasswordResetPage() {
         return "passwordReset";
     }
-    @PostMapping("/resetPassword")
-    public String resetPassword(@RequestParam String username, @RequestParam String currentPassword,
-            @RequestParam String newPassword, @RequestParam String confirmPassword, Model model) {
 
+    @PostMapping("/passwordReset")
+    public String resetPassword(@RequestParam String username,
+                                @RequestParam String currentPassword,
+                                @RequestParam String newPassword, 
+                                @RequestParam String confirmPassword, 
+                                RedirectAttributes redirectAttributes) {
+
+        // Check if new password and confirmation match
         if (!newPassword.equals(confirmPassword)) {
-            model.addAttribute("error", "New password and confirm password do not match.");
-            return "passwordReset";
+            logger.warn("Password reset failed for username '{}': Passwords do not match.", username);
+            redirectAttributes.addFlashAttribute("error", "New password and confirm password do not match.");
+            return "redirect:/passwordReset";
         }
 
+        // Validate password strength
+        if (!isValidPassword(newPassword)) {
+            logger.warn("Password reset failed for username '{}': Password does not meet security requirements.", username);
+            redirectAttributes.addFlashAttribute("error", "Password must be at least 8 characters long and include uppercase, lowercase, number, and special character.");
+            return "redirect:/passwordReset";
+        }
+
+        // Prevent user from reusing the same password
+        if (currentPassword.equals(newPassword)) {
+            logger.warn("Password reset failed for username '{}': New password cannot be the same as the current password.", username);
+            redirectAttributes.addFlashAttribute("error", "New password cannot be the same as the current password.");
+            return "redirect:/passwordReset";
+        }
+
+        // Authenticate user with current password
         Employee employee = employeeService.authenticateEmployee(username, currentPassword);
         if (employee == null) {
-            model.addAttribute("error", "Invalid username or current password.");
-            return "passwordReset";
+            logger.warn("Password reset failed for username '{}': Invalid username or current password.", username);
+            redirectAttributes.addFlashAttribute("error", "Invalid username or current password.");
+            return "redirect:/passwordReset";
         }
 
+        // Change the password
         boolean isPasswordChanged = employeeService.changePassword(username, newPassword);
         if (isPasswordChanged) {
-            model.addAttribute("message", "Password successfully reset.");
-            logger.info("Password reset successful for username: {}", username);
-            return "redirect:/login";
+            logger.info("Password reset successful for username '{}'", username);
+            redirectAttributes.addFlashAttribute("success", "Password successfully reset. You are now logged in.");
+            return "redirect:/timesheet";  // Redirect to timesheet page
         } else {
-            model.addAttribute("error", "Failed to reset password.");
-            return "passwordReset";
+            logger.error("Password reset failed for username '{}': Unknown error occurred.", username);
+            redirectAttributes.addFlashAttribute("error", "Failed to reset password. Please try again.");
+            return "redirect:/passwordReset";
         }
     }
+
+    private boolean isValidPassword(String password) {
+        return password.matches("^(?=.*[A-Z])(?=.*[a-z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{8,}$");
+    }
+
 
    
 }

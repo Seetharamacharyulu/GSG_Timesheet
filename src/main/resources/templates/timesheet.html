@@ -87,21 +87,15 @@
     <div class="container">
         <h2>Timesheet Actions</h2>
 
-        <!-- Display success or logout message -->
-        <div th:if="${logoutMessage != null}" class="message success">
-            <span th:text="${logoutMessage}"></span>
-        </div>
+		<div th:if="${success != null}" class="message success">
+		    <span th:text="${success}"></span>
+		</div>
 
         <!-- Display error message for restricted login -->
         <div th:if="${error != null}" class="message error">
             <span th:text="${error}"></span>
         </div>
         
-        <!-- Show Logout Success Message with Username and Timestamp -->
-        <div th:if="${logoutMessage != null}">
-           
-        </div>
-
         <!-- Login Button -->
         <form action="/login" method="post">
             <button type="submit" class="button">Login</button>
@@ -118,7 +112,7 @@
         </form>
 
         <div class="footer">
-            <p>&copy; 2025 Timesheet App. All Rights Reserved.</p>
+            &copy; 2025 Timesheet App
         </div>
     </div>
 </body>
